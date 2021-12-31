@@ -1,20 +1,15 @@
 package com.mjouneo.noodle;
 
+import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.DialogInterface;
-import android.graphics.Bitmap;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.CountDownTimer;
-import android.os.Message;
 import android.text.TextUtils;
-import android.view.View;
-import android.webkit.HttpAuthHandler;
 import android.webkit.JavascriptInterface;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
@@ -30,20 +25,18 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
-import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity {
 
     WebView webView;
-    private static final String server = "http://192.168.4.1/?State=";
     RecyclerView recyclerView;
     Button btnAddDevice, btnGo;
     EditText editDeviceID, editTimer;
-    TextView tvlistofdevice;
+    TextView tvListOfDevice;
 
     List<ItemData> itemDataList = new ArrayList<>();
     List<String> IDList = new ArrayList<>();
+    CommandBuilder commandBuilder = new CommandBuilder();
     int second = 0;
     String response;
     ItemData itemData;
@@ -51,7 +44,7 @@ public class MainActivity extends AppCompatActivity {
     ProgressDialog progressDialog;
     int index;
 
-
+    @SuppressLint({"NotifyDataSetChanged", "SetJavaScriptEnabled"})
     @RequiresApi(api = Build.VERSION_CODES.S)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -64,7 +57,7 @@ public class MainActivity extends AppCompatActivity {
         btnGo = findViewById(R.id.btnsetTimer);
         editDeviceID = findViewById(R.id.edit_deviceID);
         editTimer = findViewById(R.id.edit_Second);
-        tvlistofdevice = findViewById(R.id.tvlistofdevice);
+        tvListOfDevice = findViewById(R.id.tvlistofdevice);
 
         progressDialog = new ProgressDialog(this);
 
@@ -76,32 +69,22 @@ public class MainActivity extends AppCompatActivity {
         recyclerView.addItemDecoration(new DividerItemDecoration(this, LinearLayoutManager.VERTICAL));
         recyclerView.setAdapter(adapter);
 
-        adapter.setOnItemClickListener(new MyAdapter.OnItemClickListener() {
-            @Override
-            public void onCancelCLick(int position) {
+        adapter.setOnItemClickListener(position -> {
 //                itemDataList.get(position).countDownTimer.cancel();
-                new AlertDialog.Builder(MainActivity.this)
-                        .setMessage("Are you sure want to Cancel!")
-                        .setTitle("Cancel")
-                        .setCancelable(false)
-                        .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialogInterface, int i) {
-                                response = "";
-                                index = position;
-                                webView.loadUrl(server + "B");
-                                adapter.notifyDataSetChanged();
-                                progressDialog.setMessage("Canceling...");
-                                progressDialog.show();
-                            }
-                        })
-                        .setNegativeButton("No", new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialogInterface, int i) {
-                                dialogInterface.cancel();
-                            }
-                        }).create().show();
-            }
+            new AlertDialog.Builder(MainActivity.this)
+                    .setMessage("Are you sure want to Cancel!")
+                    .setTitle("Cancel")
+                    .setCancelable(false)
+                    .setPositiveButton("Yes", (dialogInterface, i) -> {
+                        response = "";
+                        index = position;
+                        //ToDo : get ID form cancel row
+                        webView.loadUrl(commandBuilder.stopTimer(IDList).build());
+                        adapter.notifyDataSetChanged();
+                        progressDialog.setMessage("Canceling...");
+                        progressDialog.show();
+                    })
+                    .setNegativeButton("No", (dialogInterface, i) -> dialogInterface.cancel()).create().show();
         });
 
         btnAddDevice.setOnClickListener(view -> {
@@ -112,7 +95,7 @@ public class MainActivity extends AppCompatActivity {
                 }else {
                     IDList.add(id);
                 }
-                tvlistofdevice.setText(IDList.toString());
+                tvListOfDevice.setText(IDList.toString());
                 editDeviceID.setText("");
             }
         });
@@ -121,19 +104,35 @@ public class MainActivity extends AppCompatActivity {
             if (!TextUtils.isEmpty(editTimer.getText().toString()) && TextUtils.isDigitsOnly(editTimer.getText().toString())  && IDList.size() > 0){
                 second = Integer.parseInt(editTimer.getText().toString());
                 response = "";
-                webView.loadUrl(server + "F&&Dur=" + second);
+                webView.loadUrl(commandBuilder.startTimer(IDList, second).build());
                 itemData = new ItemData(IDList, second, adapter);
                 progressDialog.setMessage("Sending...");
                 progressDialog.show();
             }
         });
 
-        progressDialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
+        progressDialog.setOnShowListener(new DialogInterface.OnShowListener() {
             @Override
-            public void onDismiss(DialogInterface dialogInterface) {
-                adapter.notifyDataSetChanged();
-                tvlistofdevice.setText(IDList.toString());
+            public void onShow(DialogInterface dialogInterface) {
+                new CountDownTimer(5000, 1000){
+                    @Override
+                    public void onTick(long l) {
+                        if (!progressDialog.isShowing()) this.cancel();
+                    }
+
+                    @Override
+                    public void onFinish() {
+                        progressDialog.dismiss();
+                        Toast.makeText(getApplicationContext(), "Connection Failed!", Toast.LENGTH_SHORT).show();
+                    }
+                }.start();
             }
+        });
+
+        progressDialog.setOnDismissListener(dialogInterface -> {
+            adapter.notifyDataSetChanged();
+            tvListOfDevice.setText(IDList.toString());
+            if (IDList.isEmpty()) editTimer.setText("");
         });
 
         WebViewClient webViewClient = new WebViewClient() {
@@ -141,14 +140,6 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 return false;
-            }
-
-
-            @Override
-            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
-                super.onReceivedError(view, errorCode, description, failingUrl);
-                progressDialog.dismiss();
-                Toast.makeText(getApplicationContext(), "Connection Failed!", Toast.LENGTH_SHORT).show();
             }
 
             @Override
@@ -166,7 +157,7 @@ public class MainActivity extends AppCompatActivity {
 
     class MyJavaScriptInterface {
 
-        private Context ctx;
+        private final Context ctx;
 
         MyJavaScriptInterface(Context ctx) {
             this.ctx = ctx;
@@ -179,7 +170,6 @@ public class MainActivity extends AppCompatActivity {
                 itemData.countDownTimer.start();
                 itemDataList.add(itemData);
                 IDList.clear();
-                editTimer.setText("");
                 progressDialog.dismiss();
             }else if ("STOP".equals(response)){
                 itemDataList.get(index).countDownTimer.cancel();

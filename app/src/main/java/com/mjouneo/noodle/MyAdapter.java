@@ -1,27 +1,22 @@
 package com.mjouneo.noodle;
 
 import android.content.Context;
-import android.os.CountDownTimer;
-import android.os.Handler;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.List;
-import java.util.Locale;
 
 public class MyAdapter extends RecyclerView.Adapter<MyAdapter.MyViewHolder> {
 
-    private List<ItemData> mData;
-    private LayoutInflater mInflater;
+    private final List<ItemData> mData;
+    private final LayoutInflater mInflater;
     private OnItemClickListener onItemClickListener;
-    private Handler handler = new Handler();
 
     MyAdapter(Context context, List<ItemData> data){
         this.mInflater = LayoutInflater.from(context);
@@ -37,7 +32,6 @@ public class MyAdapter extends RecyclerView.Adapter<MyAdapter.MyViewHolder> {
 
     @Override
     public void onBindViewHolder(@NonNull MyViewHolder holder, int position) {
-        int index = position;
         List<String> IDList = mData.get(position).ID;
         holder.txtID.setText(IDList.toString());
         holder.txtSec.setText(mData.get(position).timeLeft);
@@ -59,7 +53,7 @@ public class MyAdapter extends RecyclerView.Adapter<MyAdapter.MyViewHolder> {
         onItemClickListener = listener;
     }
 
-    public class MyViewHolder extends RecyclerView.ViewHolder {
+    public static class MyViewHolder extends RecyclerView.ViewHolder {
         TextView txtID, txtSec;
         Button btnCancel;
 
@@ -69,14 +63,11 @@ public class MyAdapter extends RecyclerView.Adapter<MyAdapter.MyViewHolder> {
             txtSec = itemView.findViewById(R.id.tvSec);
             btnCancel = itemView.findViewById(R.id.btnCancel);
 
-            btnCancel.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View view) {
-                    if (listener != null){
-                        int positon = getAdapterPosition();
-                        if (positon != RecyclerView.NO_POSITION){
-                            listener.onCancelCLick(positon);
-                        }
+            btnCancel.setOnClickListener(view -> {
+                if (listener != null){
+                    int position = getAdapterPosition();
+                    if (position != RecyclerView.NO_POSITION){
+                        listener.onCancelCLick(position);
                     }
                 }
             });
